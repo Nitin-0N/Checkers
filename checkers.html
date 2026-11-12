@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Checkers</title>
+<script src="https://www.youtube.com/game_api/v1"></script>
+
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    background: #151b24;
+    color: #f7f3e9;
+    font: 16px system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  main {
+    width: 100%;
+    text-align: center;
+    padding: 8px;
+  }
+
+  h1 {
+    margin: 0 0 2px;
+    font-size: clamp(22px, 5vh, 36px);
+    letter-spacing: 0.12em;
+  }
+
+  #status {
+    min-height: 24px;
+    margin: 2px 0 8px;
+    color: #e7c887;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(8, minmax(0, 1fr));
+    width: min(96vw, calc(100dvh - 125px));
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 3px solid #473b32;
+    border-radius: 5px;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  .cell {
+    border: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .light { background: #f0d9b5; }
+  .dark { background: #79513b; cursor: pointer; }
+
+  .cell.selected {
+    box-shadow: inset 0 0 0 4px #ffe071;
+  }
+
+  .cell.target::after {
+    content: "";
+    width: 28%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #b8e986;
+    box-shadow: 0 0 0 3px #304b2c;
+    animation: target-pulse 800ms ease-in-out infinite alternate;
+  }
+
+  .piece {
+    width: 70%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: clamp(16px, 5vw, 28px);
+    box-shadow: inset 0 -3px 0 #0003, 0 1px 3px #0005;
+    pointer-events: none;
+    transition: transform 140ms ease;
+  }
+
+  .piece.red {
+    background: radial-gradient(circle at 35% 28%, #ff9186, #df403d 68%);
+    border: 3px solid #ffb0a4;
+  }
+
+  .piece.black {
+    background: radial-gradient(circle at 35% 28%, #66717f, #252b34 68%);
+    border: 3px solid #aeb8c2;
+  }
+
+  .cell.selected .piece { transform: scale(1.08); }
+  .piece.king { color: #ffe071; }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  #reset, .menu-button {
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 22px;
+    background: #e7c887;
+    color: #201a13;
+    font-weight: 800;
+  }
+
+  #reset { margin-top: 9px; }
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: #10141deF;
+    animation: fade-in 250ms ease-out;
+  }
+
+  .screen[hidden] { display: none; }
+
+  .card {
+    width: min(88vw, 380px);
+    padding: 28px 22px;
+    border: 2px solid #e7c887;
+    border-radius: 22px;
+    background: #222a35;
+    box-shadow: 0 18px 60px #0008;
+    animation: pop-in 350ms cubic-bezier(.2, 1.5, .5, 1);
+  }
+
+  .card h2 {
+    margin: 0 0 8px;
+    font-size: 30px;
+  }
+
+  .card p {
+    margin: 0 0 20px;
+    color: #d5d8dd;
+  }
+
+  .difficulty-buttons {
+    display: grid;
+    gap: 10px;
+  }
+
+  .menu-button {
+    width: 100%;
+    padding: 13px 20px;
+    font-size: 17px;
+  }
+
+  .menu-button:hover, #reset:hover {
+    filter: brightness(1.08);
+  }
+
+  .end-icon {
+    font-size: 54px;
+    animation: bounce 700ms ease-in-out infinite alternate;
+  }
+
+  #endTitle { margin: 8px 0; }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes pop-in {
+    from { transform: scale(.75); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes bounce {
+    to { transform: translateY(-7px) rotate(-5deg); }
+  }
+
+  @keyframes target-pulse {
+    to { transform: scale(1.18); opacity: .75; }
+  }
+</style>
+</head>
+
+<body>
+<main>
+  <h1>CHECKERS</h1>
+  <div id="status" aria-live="polite">Choose a difficulty to start.</div>
+  <div id="board" role="grid" aria-label="Checkers board"></div>
+  <button id="reset">New game</button>
+</main>
+
+<div id="startScreen" class="screen">
+  <div class="card">
+    <h2>Choose difficulty</h2>
+    <p>Pick how challenging you want the match to be.</p>
+    <div class="difficulty-buttons">
+      <button class="menu-button" data-difficulty="easy">Easy</button>
+      <button class="menu-button" data-difficulty="medium">Medium</button>
+      <button class="menu-button" data-difficulty="hard">Hard</button>
+    </div>
+  </div>
+</div>
+
+<div id="endScreen" class="screen" hidden>
+  <div class="card">
+    <div id="endIcon" class="end-icon"></div>
+    <h2 id="endTitle"></h2>
+    <p id="endMessage"></p>
+    <button id="playAgain" class="menu-button">Choose difficulty</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const boardEl = document.querySelector("#board");
+  const statusEl = document.querySelector("#status");
+  const startScreen = document.querySelector("#startScreen");
+  const endScreen = document.querySelector("#endScreen");
+
+  let board;
+  let selected = null;
+  let targets = [];
+  let turn = 1;             // 1 = player, -1 = computer
+  let lockedPiece = null;
+  let over = false;
+  let gameStarted = false;
+  let difficulty = "easy";
+
+  function freshBoard() {
+    board = Array.from({ length: 8 }, () => Array(8).fill(0));
+
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 8; c++) {
+        if ((r + c) % 2) board[r][c] = -1;
+      }
+    }
+
+    for (let r = 5; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if ((r + c) % 2) board[r][c] = 1;
+      }
+    }
+
+    selected = null;
+    targets = [];
+    lockedPiece = null;
+    turn = 1;
+    over = false;
+    statusEl.textContent = "Your move — tap a red piece.";
+    draw();
+  }
+
+  function inside(r, c) {
+    return r >= 0 && r < 8 && c >= 0 && c < 8;
+  }
+
+  function stepsFor(r, c, capturesOnly = false) {
+    const piece = board[r][c];
+    if (!piece) return [];
+
+    const side = Math.sign(piece);
+    const king = Math.abs(piece) === 2;
+    const rowDirections = king ? [-1, 1] : [side === 1 ? -1 : 1];
+    const moves = [];
+
+    for (const dr of rowDirections) {
+      for (const dc of [-1, 1]) {
+        const nr = r + dr;
+        const nc = c + dc;
+
+        if (!inside(nr, nc)) continue;
+
+        if (!board[nr][nc] && !capturesOnly) {
+          moves.push({ from: [r, c], to: [nr, nc], capture: null });
+        } else if (board[nr][nc] && Math.sign(board[nr][nc]) !== side) {
+          const jr = r + 2 * dr;
+          const jc = c + 2 * dc;
+
+          if (inside(jr, jc) && !board[jr][jc]) {
+            moves.push({
+              from: [r, c],
+              to: [jr, jc],
+              capture: [nr, nc]
+            });
+          }
+        }
+      }
+    }
+
+    return moves;
+  }
+
+  function allMoves(side) {
+    const moves = [];
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (Math.sign(board[r][c]) === side) {
+          moves.push(...stepsFor(r, c));
+        }
+      }
+    }
+
+    const captures = moves.filter(move => move.capture);
+    return captures.length ? captures : moves;
+  }
+
+  function draw() {
+    boardEl.innerHTML = "";
+    const legalMoves = turn === 1 && !over ? allMoves(1) : [];
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = document.createElement("button");
+        cell.className = `cell ${(r + c) % 2 ? "dark" : "light"}`;
+        cell.setAttribute("aria-label", `row ${r + 1}, column ${c + 1}`);
+
+        const piece = board[r][c];
+
+        if (piece) {
+          const token = document.createElement("span");
+          token.className =
+            `piece ${piece > 0 ? "red" : "black"} ${Math.abs(piece) === 2 ? "king" : ""}`;
+          token.textContent = Math.abs(piece) === 2 ? "♛" : "";
+          cell.append(token);
+        }
+
+        if (selected && selected[0] === r && selected[1] === c) {
+          cell.classList.add("selected");
+        }
+
+        if (targets.some(move => move.to[0] === r && move.to[1] === c)) {
+          cell.classList.add("target");
+        }
+
+        cell.addEventListener("click", () => tap(r, c));
+        boardEl.append(cell);
+      }
+    }
+  }
+
+  function tap(r, c) {
+    if (!gameStarted || over || turn !== 1) return;
+
+    const chosenMove = targets.find(move =>
+      move.to[0] === r && move.to[1] === c
+    );
+
+    if (chosenMove) {
+      play(chosenMove);
+      return;
+    }
+
+    if (lockedPiece) return;
+
+    if (
+      board[r][c] > 0 &&
+      allMoves(1).some(move =>
+        move.from[0] === r && move.from[1] === c
+      )
+    ) {
+      selected = [r, c];
+      targets = allMoves(1).filter(move =>
+        move.from[0] === r && move.from[1] === c
+      );
+
+      statusEl.textContent = targets.some(move => move.capture)
+        ? "Jump available — choose a highlighted square."
+        : "Choose a highlighted square.";
+    } else {
+      selected = null;
+      targets = [];
+    }
+
+    draw();
+  }
+
+  function showEndScreen(won) {
+    document.querySelector("#endIcon").textContent = won ? "🏆" : "☹️";
+    document.querySelector("#endTitle").textContent = won ? "You win!" : "You lose!";
+    document.querySelector("#endMessage").textContent = won
+      ? "Great game!"
+      : "Good game. Try another difficulty?";
+    endScreen.hidden = false;
+  }
+
+  function play(move) {
+    const [r, c] = move.from;
+    const [nr, nc] = move.to;
+    let piece = board[r][c];
+
+    board[r][c] = 0;
+
+    if (move.capture) {
+      board[move.capture[0]][move.capture[1]] = 0;
+    }
+
+    let becameKing = false;
+    if ((piece === 1 && nr === 0) || (piece === -1 && nr === 7)) {
+      piece *= 2;
+      becameKing = true;
+    }
+
+    board[nr][nc] = piece;
+
+    if (move.capture && !becameKing) {
+      const followUpCaptures = stepsFor(nr, nc, true);
+
+      if (followUpCaptures.length) {
+        lockedPiece = [nr, nc];
+        selected = [nr, nc];
+        targets = followUpCaptures;
+        statusEl.textContent = "Keep jumping with that piece.";
+        draw();
+
+        if (turn === -1) setTimeout(aiMove, 450);
+        return;
+      }
+    }
+
+    selected = null;
+    targets = [];
+    lockedPiece = null;
+    turn = -turn;
+
+    const nextMoves = allMoves(turn);
+
+    if (!nextMoves.length) {
+      over = true;
+      statusEl.textContent = turn === 1 ? "You win!" : "You lose!";
+      draw();
+      showEndScreen(turn !== 1);
+      return;
+    }
+
+    draw();
+
+    if (turn === -1) {
+      statusEl.textContent = "Computer is thinking…";
+      setTimeout(aiMove, 450);
+    } else {
+      statusEl.textContent = "Your move — tap a red piece.";
+    }
+  }
+
+  // A simple board-position score helps the harder settings choose stronger moves.
+  function scoreMove(move) {
+    const [r, c] = move.from;
+    const [nr, nc] = move.to;
+    const originalPiece = board[r][c];
+    const capturedPiece = move.capture
+      ? board[move.capture[0]][move.capture[1]]
+      : 0;
+
+    let resultingPiece = originalPiece;
+    let score = 0;
+
+    if (move.capture) {
+      score += 10 + (Math.abs(capturedPiece) === 2 ? 4 : 0);
+      board[move.capture[0]][move.capture[1]] = 0;
+    }
+
+    board[r][c] = 0;
+
+    const promotes = originalPiece === -1 && nr === 7;
+    if (promotes) {
+      resultingPiece = -2;
+      score += 18;
+    }
+
+    board[nr][nc] = resultingPiece;
+
+    // Reward progress and moving toward the middle.
+    score += nr * 0.8;
+    score += (3.5 - Math.abs(3.5 - nc)) * 0.5;
+
+    // Penalize a move that lets the player immediately jump this piece.
+    const playerReplies = allMoves(1);
+    const canBeCaptured = playerReplies.some(reply =>
+      reply.capture &&
+      reply.capture[0] === nr &&
+      reply.capture[1] === nc
+    );
+    if (canBeCaptured) score -= 12;
+
+    // Restore the board after testing the move.
+    board[nr][nc] = 0;
+    board[r][c] = originalPiece;
+    if (move.capture) {
+      board[move.capture[0]][move.capture[1]] = capturedPiece;
+    }
+
+    return score;
+  }
+
+  function chooseAiMove(moves) {
+    if (difficulty === "easy") {
+      return moves[Math.floor(Math.random() * moves.length)];
+    }
+
+    const ranked = moves
+      .map(move => ({ move, score: scoreMove(move) }))
+      .sort((a, b) => b.score - a.score);
+
+    if (difficulty === "medium") {
+      // Medium usually prefers a good move, but still makes occasional surprises.
+      const choices = ranked.slice(0, Math.min(3, ranked.length));
+      return choices[Math.floor(Math.random() * choices.length)].move;
+    }
+
+    // Hard picks the best-scoring available move.
+    return ranked[0].move;
+  }
+
+  function aiMove() {
+    if (!gameStarted || over || turn !== -1) return;
+
+    const moves = lockedPiece
+      ? stepsFor(lockedPiece[0], lockedPiece[1], true)
+      : allMoves(-1);
+
+    if (!moves.length) return;
+
+    play(chooseAiMove(moves));
+  }
+
+  function showStartScreen() {
+    gameStarted = false;
+    endScreen.hidden = true;
+    startScreen.hidden = false;
+    freshBoard();
+    statusEl.textContent = "Choose a difficulty to start.";
+  }
+
+  document.querySelectorAll("[data-difficulty]").forEach(button => {
+    button.addEventListener("click", () => {
+      difficulty = button.dataset.difficulty;
+      gameStarted = true;
+      startScreen.hidden = true;
+      freshBoard();
+    });
+  });
+
+  document.querySelector("#reset").addEventListener("click", showStartScreen);
+  document.querySelector("#playAgain").addEventListener("click", showStartScreen);
+
+  showStartScreen();
+
+  if (typeof ytgame !== "undefined") {
+    ytgame.system?.onPause?.(() => {
+      document.body.dataset.paused = "true";
+    });
+    ytgame.system?.onResume?.(() => {
+      delete document.body.dataset.paused;
+    });
+
+    requestAnimationFrame(() => {
+      ytgame.game.firstFrameReady?.();
+      ytgame.game.gameReady?.();
+    });
+  }
+})();
+</script>
+</body>
+</html>
